@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Airdrop Chaos Simulator</title>
+  <script src="https://cdn.tailwindcss.com" onerror="console.error('Failed to load Tailwind CSS')"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" onerror="console.error('Failed to load Chart.js')"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap');
+    body { font-family: 'Roboto Mono', monospace; }
+    .error-border { border: 3px solid #f05252; box-shadow: 0 0 10px #f05252; }
+    .flicker { animation: flicker 1s infinite; }
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+    .crash { animation: crash 0.3s forwards; }
+    @keyframes crash { 100% { opacity: 0; transform: scale(0.8); } }
+    .corrupted { text-shadow: 1px 1px #f05252, -1px -1px #f97316; }
+    .corrupted-orange { text-shadow: 1px 1px #ea580c, -1px -1px #f97316; }
+    .freeze-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: #f05252;
+      font-size: 2rem;
+    }
+    .popup {
+      position: fixed;
+      background: #374151;
+      color: #f05252;
+      padding: 10px 20px;
+      border: 2px solid #f05252;
+      box-shadow: 0 0 10px #f05252;
+      z-index: 999;
+      animation: flicker 0.8s infinite;
+      max-width: 300px;
+      border-radius: 4px;
+    }
+    .community-scroll {
+      height: 300px;
+      overflow: hidden;
+      position: relative;
+    }
+    .community-scroll-inner {
+      animation: scroll 60s linear infinite;
+    }
+    @keyframes scroll {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-100%); }
+    }
+    .community-post {
+      display: flex;
+      align-items: flex-start;
+      padding: 10px;
+      border-bottom: 1px solid #4b5563;
+    }
+    .community-post img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body class="bg-gray-800 text-gray-200 min-h-screen flex flex-col">
+  <div class="w-full max-w-5xl p-6 flex-grow">
+    <div id="freezeOverlay" class="freeze-overlay">SYSTEM CRASH - RELOADING...</div>
+
+    <!-- Audio Elements with Fallbacks -->
+    <audio id="glitchSound" preload="auto" onerror="console.log('Glitch audio failed to load')">
+      <source src="sounds/glitch.mp3" type="audio/mpeg">
+      <source src="sounds/glitch.ogg" type="audio/ogg">
+    </audio>
+    <audio id="alertSound" preload="auto" onerror="console.log('Alert audio failed to load')">
+      <source src="sounds/alert.mp3" type="audio/mpeg">
+      <source src="sounds/alert.ogg" type="audio/ogg">
+    </audio>
+    <audio id="tokenTableSound" preload="auto" onerror="console.log('TokenTable audio failed to load')">
+      <source src="sounds/tokentable.mp3" type="audio/mpeg">
+      <source src="sounds/tokentable.ogg" type="audio/ogg">
+    </audio>
+
+    <!-- Home Section -->
+    <div id="home" class="container mx-auto">
+      <h1 class="text-4xl font-bold text-center mb-6 text-[#f05252] corrupted">Airdrop Chaos Simulator</h1>
+      <h3 class="text-center mb-8 text-gray-400">Airdrop distribution without TOKENTABLE.</h3>
+      <p class="text-center mb-8 text-gray-400">Dive into the glitchy nightmare of manual token airdrops.</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-gray-700 p-8 rounded-lg shadow-lg border border-[#f05252] hover:border-[#ef4444] transition-all">
+          <h2 class="text-2xl font-semibold text-[#06b6d4] corrupted">As Project</h2>
+          <p class="mt-2 text-gray-200">Distribute tokens and drown in bugs.</p>
+          <button onclick="startProjectSimulation()" class="mt-4 bg-[#f05252] text-white px-6 py-2 rounded hover:bg-[#ef4444]">Start</button>
+        </div>
+        <div class="bg-gray-700 p-8 rounded-lg shadow-lg border border-[#f05252] hover:border-[#ef4444] transition-all">
+          <h2 class="text-2xl font-semibold text-[#06b6d4] corrupted">As Receiver</h2>
+          <p class="mt-2 text-gray-200">Claim tokens and pray for luck.</p>
+          <button onclick="startReceiverSimulation()" class="mt-4 bg-[#06b6d4] text-white px-6 py-2 rounded hover:bg-[#0891b2]">Start</button>
+        </div>
+        <div class="bg-gray-700 p-8 rounded-lg shadow-lg border border-[#f97316] hover:border-[#ea580c] transition-all">
+          <h2 class="text-2xl font-semibold text-[#f97316] corrupted-orange">Learn About TokenTable</h2>
+          <p class="mt-2 text-gray-200">Discover how TokenTable saves airdrops.</p>
+          <button onclick="showTokenTableInfo()" class="mt-4 bg-[#f97316] text-white px-6 py-2 rounded hover:bg-[#ea580c]">Learn More</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Simulation Section -->
+    <div id="projectSimulation" class="container mx-auto hidden">
+      <h1 class="text-3xl font-bold mb-6 text-[#f05252] corrupted">Project: Distribute Tokens</h1>
+      <p class="mb-6 text-gray-400">Set up your airdrop and watch it implode.</p>
+      <div class="bg-gray-700 p-8 rounded-lg shadow-lg mb-6 border border-[#f05252]">
+        <h2 class="text-xl font-semibold text-[#06b6d4] corrupted">Airdrop Details</h2>
+        <div class="mt-4">
+          <label class="block mb-2 text-gray-200">Number of Recipients:</label>
+          <input id="numRecipients" type="number" min="1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded text-gray-200" placeholder="e.g., 100">
+        </div>
+        <div class="mt-4">
+          <label class="block mb-2 text-gray-200">Tokens per Recipient:</label>
+          <input id="tokensPerRecipient" type="number" min="1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded text-gray-200" placeholder="e.g., 1000">
+        </div>
+        <button onclick="calculateTotalTokens()" class="mt-4 bg-[#f05252] text-white px-6 py-2 rounded hover:bg-[#ef4444]">Calculate Total Tokens</button>
+        <p id="calcResult" class="mt-4 text-gray-200"></p>
+        <button id="distributeBtn" onclick="startDistribution()" class="mt-4 bg-[#f05252] text-white px-6 py-2 rounded hover:bg-[#ef4444] hidden">Start Distribution</button>
+        <button id="clawbackBtn" onclick="attemptClawback()" class="mt-4 bg-[#f4a261] text-white px-6 py-2 rounded hover:bg-[#f59e0b] hidden">Attempt Clawback</button>
+      </div>
+      <div id="distributionResult" class="bg-gray-700 p-8 rounded-lg shadow-lg hidden border border-[#f05252]">
+        <h2 class="text-xl font-semibold text-[#06b6d4] corrupted">Distribution Results</h2>
+        <ul id="resultList" class="mt-2 text-gray-200 list-disc list-inside"></ul>
+        <div class="mt-4 w-64 mx-auto">
+          <canvas id="resultChart"></canvas>
+        </div>
+      </div>
+      <div id="communityFeed" class="bg-gray-700 p-8 rounded-lg shadow-lg mt-6 border border-[#f05252] hidden">
+        <h2 class="text-xl font-semibold text-[#06b6d4] corrupted">Community Feed</h2>
+        <div class="community-scroll">
+          <div id="feedMessages" class="community-scroll-inner"></div>
+        </div>
+        <div id="sentimentChartContainer" class="mt-4 w-64 mx-auto hidden">
+          <canvas id="sentimentCanvas"></canvas>
+        </div>
+      </div>
+      <button onclick="goHome()" class="mt-6 text-[#f05252] hover:text-[#ef4444] border border-[#f05252] px-4 py-2 rounded">Back to Home</button>
+    </div>
+
+    <!-- Receiver Simulation Section -->
+    <div id="receiverSimulation" class="container mx-auto hidden">
+      <h1 class="text-3xl font-bold mb-6 text-[#f05252] corrupted">Receiver: Claim Tokens</h1>
+      <p class="mb-6 text-gray-400">Select your wallet and battle the glitches.</p>
+      <div class="bg-gray-700 p-8 rounded-lg shadow-lg border border-[#f05252]">
+        <h2 class="text-xl font-semibold text-[#06b6d4] corrupted">Claim Tokens</h2>
+        <select id="addressSelect" class="w-full p-2 bg-gray-600 border border-gray-500 rounded mt-4 text-gray-200"></select>
+        <div id="kycSection" class="mt-4 hidden">
+          <label class="block mb-2 text-gray-200">KYC Name:</label>
+          <input id="kycName" type="text" class="w-full p-2 bg-gray-600 border border-gray-500 rounded text-gray-200" placeholder="Enter name">
+        </div>
+        <button id="claimBtn" onclick="claimTokens()" class="mt-4 bg-[#06b6d4] text-white px-6 py-2 rounded hover:bg-[#0891b2]">Claim Tokens</button>
+        <div id="claimResult" class="mt-4 text-gray-200"></div>
+        <div id="notifications" class="mt-4 text-gray-200"></div>
+      </div>
+      <button onclick="goHome()" class="mt-6 text-[#f05252] hover:text-[#ef4444] border border-[#f05252] px-4 py-2 rounded">Back to Home</button>
+    </div>
+
+    <!-- TokenTable Info Section -->
+    <div id="tokenTableInfo" class="container mx-auto hidden">
+      <h1 class="text-3xl font-bold mb-6 text-[#f97316] corrupted-orange">How TokenTable Saves Airdrops & Builds Trust</h1>
+      <div class="bg-gray-700 p-8 rounded-lg shadow-lg border border-[#f97316]">
+        <p class="text-gray-200 mb-4">Manual airdrops are chaotic—typos, gas failures, bot attacks, and angry communities. TokenTable fixes this by automating and securing token distribution, but it’s more than that—it’s a system to make crypto transparent and trustworthy.</p>
+        <button onclick="startTutorial()" class="mt-4 bg-[#f97316] text-white px-6 py-2 rounded hover:bg-[#ea580c]">Start Tutorial</button>
+        <h2 class="text-xl font-semibold text-[#f97316] corrupted-orange mb-4 mt-6">What is TokenTable?</h2>
+        <p class="text-gray-200 mb-4">TokenTable isn’t just a dashboard. It’s a framework that makes crypto projects accountable by showing everyone—investors, users, and teams—what’s happening with tokens in real time.</p>
+        <h2 class="text-xl font-semibold text-[#f97316] corrupted-orange mb-4">Crypto’s Problems</h2>
+        <ul class="text-gray-200 list-disc list-inside mb-4">
+          <li><strong>Broken Promises:</strong> Projects often promise tokens to investors but delay or change plans, causing frustration.</li>
+          <li><strong>Hidden Information:</strong> Founders know when tokens are released, but the public doesn’t, leading to distrust and unfair markets.</li>
+        </ul>
+        <h2 class="text-xl font-semibold text-[#f97316] corrupted-orange mb-4">How TokenTable Works</h2>
+        <p class="text-gray-200 mb-4">TokenTable creates a public record of token distribution:</p>
+        <ul class="text-gray-200 list-disc list-inside mb-4">
+          <li>Shows the token plan (e.g., 10% for community, 20% for investors).</li>
+          <li>Tracks unlock dates and amounts live.</li>
+          <li>Alerts everyone if plans change.</li>
+          <li>Lets anyone—community, investors, media—monitor projects.</li>
+        </ul>
+        <h2 class="text-xl font-semibold text-[#f97316] corrupted-orange mb-4">Why It Matters</h2>
+        <p class="text-gray-200 mb-4">TokenTable brings clarity without complex rules. It encourages projects to keep promises by making actions visible, building trust and fairness. <strong>Transparency, accountability, real-time visibility</strong> make crypto stronger.</p>
+        <h2 class="text-xl font-semibold text-[#f97316] corrupted-orange mb-4">Why TokenTable?</h2>
+        <ul class="text-gray-200 list-disc list-inside">
+          <li><strong>Automated Address Validation:</strong> Catches typos and invalid wallets to prevent lost tokens.</li>
+          <li><strong>Gas Optimization:</strong> Reduces transaction failures with smart gas calculations.</li>
+          <li><strong>Bot Protection:</strong> Blocks bots from stealing airdrop shares.</li>
+          <li><strong>Secure KYC Integration:</strong> Simplifies eligibility checks without data loss.</li>
+          <li><strong>Real-Time Monitoring:</strong> Tracks distribution to stop hacks and over-claims.</li>
+          <li><strong>Clear Communication:</strong> Sends clear, multilingual updates to reduce confusion.</li>
+        </ul>
+        <p class="text-gray-200 mt-4">With TokenTable, airdrops are fast, secure, and error-free, saving projects from glitches, delays, and community backlash.</p>
+      </div>
+      <button onclick="goHome()" class="mt-6 text-[#f97316] hover:text-[#ea580c] border border-[#f97316] px-4 py-2 rounded">Back to Home</button>
+      <div id="tutorialOverlay" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-1000">
+        <div class="bg-gray-700 p-8 rounded-lg border border-[#f97316] max-w-md">
+          <h3 id="tutorialTitle" class="text-xl text-[#f97316] corrupted-orange"></h3>
+          <p id="tutorialText" class="text-gray-200 mt-2"></p>
+          <div id="tutorialMiniSim" class="mt-4 text-gray-200"></div>
+          <div class="mt-4 flex justify-between">
+            <button onclick="nextTutorialStep()" class="bg-[#f97316] text-white px-4 py-2 rounded hover:bg-[#ea580c]">Next</button>
+            <button onclick="closeTutorial()" class="bg-[#f97316] text-white px-4 py-2 rounded hover:bg-[#ea580c]">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-gray-200 w-full py-4">
+    <div class="container mx-auto text-center">
+      <p class="text-sm">Created by: 
+        <a href="https://x.com/CreatorOne" target="_blank" class="text-[#f97316] hover:text-[#ea580c]">@CreatorOne</a> & 
+        <a href="https://x.com/CreatorTwo" target="_blank" class="text-[#f97316] hover:text-[#ea580c]">@CreatorTwo</a>
+      </p>
+    </div>
+  </footer>
+
+  <script defer>
+    try {
+      let chartInstance = null;
+      let sentimentChartInstance = null;
+      let totalTokens = 0;
+      let successfulTokens = 0;
+      let wrongAddressTokens = 0;
+      let failedTokens = 0;
+      let unclaimedTokens = 0;
+      let hackedTokens = 0;
+      let botTokens = 0;
+
+      const communityMessages = [
+        '😡 Wrong address! My tokens are gone!',
+        '😞 Transaction failed for the 5th time...',
+        '🤬 Bots stole my airdrop!',
+        '😕 Still waiting for my tokens...',
+        '🚨 Hack alert! Tokens vanished!',
+        '😤 KYC rejected again?!',
+        '❌ Server crashed mid-claim!',
+        '⏳ Been in queue for hours...',
+        '🤖 Bot attack ruined everything!',
+        '😢 Tokens sent to 0xdead...',
+        '⚠️ Gas fees ate my wallet!',
+        '😠 Why is my eligibility disputed?',
+        '📧 Got 10 spam emails about this!',
+        '🚫 Claim button broke again!',
+        '😩 Lost my data in the system!',
+        '🤔 Instructions in gibberish!',
+        '😡 Over-claimed tokens? How?!',
+        '😞 Clawback failed, tokens lost!',
+        '🚨 System down, try tomorrow!',
+        '😤 Queue reset, starting over!',
+        '🤬 Wrong tokens sent to me!',
+        '😕 Unclaimed pile growing...',
+        '⚠️ Typo in my address!',
+        '😢 Hacker took my share!',
+        '📧 Notification says I’m ineligible?',
+        '🚫 Gas miscalc, tx failed!',
+        '😡 Community is furious!',
+        '😞 Tokens stuck in limbo!',
+        '🤖 Bots claimed before me!',
+        '😤 KYC typo rejected me!',
+        '🚨 Server outage again!',
+        '😕 Where’s my airdrop?!',
+        '⚠️ Data mismatch error!',
+        '😡 Wrong amount sent!',
+        '😞 Claim queue crashed!',
+        '🤬 Bots everywhere!',
+        '😢 Tokens sent to void!',
+        '📧 Confusing email spam!',
+        '🚫 System froze mid-claim!',
+        '😤 Eligibility check failed!',
+        '😕 No tokens in wallet!',
+        '⚠️ Address corrupted!',
+        '😡 Clawback didn’t work!',
+        '😞 Gas fees too high!',
+        '🤖 Bot took my spot!',
+        '😤 Queue keeps resetting!',
+        '🚨 Hack drained the pool!',
+        '😕 Instructions unclear!',
+        '😡 Tokens double-claimed!',
+        '😞 Airdrop a total mess!'
+      ];
+
+      // Sentiment Analysis
+      const sentimentMap = {
+        negative: ['😡', '😞', '🤬', '😤', '😢', '😕', '😩', '😠'],
+        neutral: ['🤔', '⏳'],
+        positive: ['✅']
+      };
+
+      function analyzeSentiment(messages, successRate) {
+        try {
+          let positive = 0, neutral = 0, negative = 0;
+          messages.forEach(msg => {
+            if (sentimentMap.negative.some(emoji => msg.includes(emoji))) negative++;
+            else if (sentimentMap.neutral.some(emoji => msg.includes(emoji))) neutral++;
+            else if (sentimentMap.positive.some(emoji => msg.includes(emoji))) positive++;
+            else negative++;
+          });
+          if (successRate > 50) positive += Math.floor(messages.length * 0.2);
+          else if (successRate < 20) negative += Math.floor(messages.length * 0.2);
+          return [positive, neutral, negative];
+        } catch (e) {
+          console.error('Error in analyzeSentiment:', e);
+          return [0, 0, messages.length];
+        }
+      }
+
+      // Tutorial Steps
+      const tutorialSteps = [
+        {
+          title: 'Automated Address Validation',
+          text: 'TokenTable catches typos and invalid wallets before tokens are sent, preventing losses.',
+          sim: '<span class="flicker corrupted-orange">0xdead... ➡️ ✅ 0x1234...</span>'
+        },
+        {
+          title: 'Gas Optimization',
+          text: 'Smart gas calculations reduce transaction failures, saving time and costs.',
+          sim: '<span class="text-[#f97316]">High gas fee!</span> ➡️ ✅ Optimized'
+        },
+        {
+          title: 'Bot Protection',
+          text: 'Blocks bots from stealing airdrop allocations, ensuring fair distribution.',
+          sim: '<span class="text-[#f97316]">🤖 Bot detected!</span> ➡️ 🚫 Blocked'
+        },
+        {
+          title: 'Secure KYC Integration',
+          text: 'Streamlines eligibility checks without data loss, making compliance easy.',
+          sim: '<span class="text-[#f97316]">KYC failed!</span> ➡️ ✅ Verified'
+        },
+        {
+          title: 'Real-Time Monitoring',
+          text: 'Tracks distribution to prevent hacks and over-claims, keeping airdrops secure.',
+          sim: '<span class="text-[#f97316]">Hack attempt!</span> ➡️ 🚨 Stopped'
+        },
+        {
+          title: 'Clear Communication',
+          text: 'Sends accurate, multilingual updates to users, reducing confusion and complaints.',
+          sim: '<span class="text-[#f97316]">Confusing email!</span> ➡️ ✅ Clear message'
+        }
+      ];
+      let currentStep = 0;
+
+      // Utility to safely play audio
+      function playAudio(audioElement) {
+        try {
+          if (audioElement && audioElement.canPlayType && audioElement.canPlayType('audio/mpeg')) {
+            audioElement.play().catch(err => console.log(`Audio playback failed: ${err.message}`));
+          }
+        } catch (e) {
+          console.error('Error in playAudio:', e);
+        }
+      }
+
+      // Show pop-up messages with audio
+      function showPopup(message) {
+        try {
+          const popup = document.createElement('div');
+          popup.className = 'popup';
+          popup.innerText = message;
+          popup.style.top = `${Math.random() * (window.innerHeight - 100)}px`;
+          popup.style.left = `${Math.random() * (window.innerWidth - 300)}px`;
+          document.body.appendChild(popup);
+          playAudio(document.getElementById('alertSound'));
+          setTimeout(() => {
+            popup.classList.add('crash');
+            setTimeout(() => popup.remove(), 300);
+          }, 3000);
+        } catch (e) {
+          console.error('Error in showPopup:', e);
+        }
+      }
+
+      // Simulate screen freeze
+      function simulateFreeze() {
+        try {
+          if (Math.random() < 0.2) {
+            const overlay = document.getElementById('freezeOverlay');
+            if (overlay) {
+              overlay.style.display = 'flex';
+              playAudio(document.getElementById('glitchSound'));
+              setTimeout(() => {
+                overlay.style.display = 'none';
+              }, 1000);
+            }
+          }
+        } catch (e) {
+          console.error('Error in simulateFreeze:', e);
+        }
+      }
+
+      // Populate community feed with sentiment analysis
+      function populateCommunityFeed() {
+        try {
+          const feed = document.getElementById('feedMessages');
+          if (!feed) {
+            console.error('Community feed element not found');
+            return;
+          }
+          feed.innerHTML = '';
+          communityMessages.forEach((msg, index) => {
+            const post = document.createElement('div');
+            post.className = 'community-post';
+            post.innerHTML = `
+              <img src="https://via.placeholder.com/40" alt="Avatar">
+              <div>
+                <p class="text-gray-200">${msg}</p>
+                <p class="text-gray-500 text-sm">User${index + 1} · ${new Date().toLocaleTimeString()}</p>
+              </div>
+            `;
+            feed.appendChild(post);
+          });
+
+          const sentimentChartContainer = document.getElementById('sentimentChartContainer');
+          const sentimentCanvas = document.getElementById('sentimentCanvas');
+          if (!sentimentChartContainer || !sentimentCanvas) {
+            console.error('Sentiment chart elements not found');
+            return;
+          }
+          sentimentChartContainer.classList.remove('hidden');
+          const successRate = totalTokens ? (successfulTokens / totalTokens) * 100 : 0;
+          if (typeof Chart === 'undefined') {
+            console.error('Chart.js not loaded successfully, continuing without charts.');
+            return;
+          }
+          if (sentimentChartInstance) sentimentChartInstance.destroy();
+          sentimentChartInstance = new Chart(sentimentCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: ['Positive', 'Neutral', 'Negative'],
+              datasets: [{
+                data: analyzeSentiment(communityMessages, successRate),
+                backgroundColor: ['#06b6d4', '#9ca3af', '#f05252']
+              }]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: { beginAtZero: true, ticks: { color: '#f3f4f6' } },
+                x: { ticks: { color: '#f3f4f6' } }
+              },
+              plugins: { legend: { display: false } }
+            }
+          });
+          playAudio(document.getElementById('alertSound'));
+        } catch (e) {
+          console.error('Error in populateCommunityFeed:', e);
+        }
+      }
+
+      // Tutorial Functions
+      function startTutorial() {
+        try {
+          currentStep = 0;
+          const tutorialOverlay = document.getElementById('tutorialOverlay');
+          if (tutorialOverlay) {
+            tutorialOverlay.classList.remove('hidden');
+            showTutorialStep();
+            playAudio(document.getElementById('tokenTableSound'));
+          }
+        } catch (e) {
+          console.error('Error in startTutorial:', e);
+        }
+      }
+
+      function showTutorialStep() {
+        try {
+          const step = tutorialSteps[currentStep];
+          const tutorialTitle = document.getElementById('tutorialTitle');
+          const tutorialText = document.getElementById('tutorialText');
+          const tutorialMiniSim = document.getElementById('tutorialMiniSim');
+          if (tutorialTitle && tutorialText && tutorialMiniSim) {
+            tutorialTitle.innerText = step.title;
+            tutorialText.innerText = step.text;
+            tutorialMiniSim.innerHTML = step.sim;
+          }
+        } catch (e) {
+          console.error('Error in showTutorialStep:', e);
+        }
+      }
+
+      function nextTutorialStep() {
+        try {
+          currentStep++;
+          if (currentStep >= tutorialSteps.length) {
+            const tutorialOverlay = document.getElementById('tutorialOverlay');
+            if (tutorialOverlay) tutorialOverlay.classList.add('hidden');
+            return;
+          }
+          showTutorialStep();
+          playAudio(document.getElementById('alertSound'));
+        } catch (e) {
+          console.error('Error in nextTutorialStep:', e);
+        }
+      }
+
+      function closeTutorial() {
+        try {
+          const tutorialOverlay = document.getElementById('tutorialOverlay');
+          if (tutorialOverlay) tutorialOverlay.classList.add('hidden');
+        } catch (e) {
+          console.error('Error in closeTutorial:', e);
+        }
+      }
+
+      // Navigation
+      function startProjectSimulation() {
+        try {
+          const home = document.getElementById('home');
+          const projectSimulation = document.getElementById('projectSimulation');
+          const receiverSimulation = document.getElementById('receiverSimulation');
+          const tokenTableInfo = document.getElementById('tokenTableInfo');
+          if (home && projectSimulation && receiverSimulation && tokenTableInfo) {
+            home.classList.add('hidden');
+            projectSimulation.classList.remove('hidden');
+            receiverSimulation.classList.add('hidden');
+            tokenTableInfo.classList.add('hidden');
+            resetProjectSimulation();
+          }
+        } catch (e) {
+          console.error('Error in startProjectSimulation:', e);
+        }
+      }
+
+      function startReceiverSimulation() {
+        try {
+          const home = document.getElementById('home');
+          const projectSimulation = document.getElementById('projectSimulation');
+          const receiverSimulation = document.getElementById('receiverSimulation');
+          const tokenTableInfo = document.getElementById('tokenTableInfo');
+          if (home && projectSimulation && receiverSimulation && tokenTableInfo) {
+            home.classList.add('hidden');
+            projectSimulation.classList.add('hidden');
+            receiverSimulation.classList.remove('hidden');
+            tokenTableInfo.classList.add('hidden');
+            populateAddresses();
+          }
+        } catch (e) {
+          console.error('Error in startReceiverSimulation:', e);
+        }
+      }
+
+      function showTokenTableInfo() {
+        try {
+          const home = document.getElementById('home');
+          const projectSimulation = document.getElementById('projectSimulation');
+          const receiverSimulation = document.getElementById('receiverSimulation');
+          const tokenTableInfo = document.getElementById('tokenTableInfo');
+          if (home && projectSimulation && receiverSimulation && tokenTableInfo) {
+            home.classList.add('hidden');
+            projectSimulation.classList.add('hidden');
+            receiverSimulation.classList.add('hidden');
+            tokenTableInfo.classList.remove('hidden');
+            playAudio(document.getElementById('tokenTableSound'));
+          }
+        } catch (e) {
+          console.error('Error in showTokenTableInfo:', e);
+        }
+      }
+
+      function goHome() {
+        try {
+          const projectSimulation = document.getElementById('projectSimulation');
+          const receiverSimulation = document.getElementById('receiverSimulation');
+          const tokenTableInfo = document.getElementById('tokenTableInfo');
+          const home = document.getElementById('home');
+          if (projectSimulation && receiverSimulation && tokenTableInfo && home) {
+            projectSimulation.classList.add('hidden');
+            receiverSimulation.classList.add('hidden');
+            tokenTableInfo.classList.add('hidden');
+            home.classList.remove('hidden');
+            if (chartInstance) {
+              chartInstance.destroy();
+              chartInstance = null;
+            }
+            if (sentimentChartInstance) {
+              sentimentChartInstance.destroy();
+              sentimentChartInstance = null;
+            }
+            document.querySelectorAll('.popup').forEach(p => p.remove());
+          }
+        } catch (e) {
+          console.error('Error in goHome:', e);
+        }
+      }
+
+      function resetProjectSimulation() {
+        try {
+          const numRecipients = document.getElementById('numRecipients');
+          const tokensPerRecipient = document.getElementById('tokensPerRecipient');
+          const calcResult = document.getElementById('calcResult');
+          const distributeBtn = document.getElementById('distributeBtn');
+          const clawbackBtn = document.getElementById('clawbackBtn');
+          const distributionResult = document.getElementById('distributionResult');
+          const communityFeed = document.getElementById('communityFeed');
+          const resultList = document.getElementById('resultList');
+          const feedMessages = document.getElementById('feedMessages');
+          const sentimentChart = document.getElementById('sentimentChartContainer');
+          if (numRecipients && tokensPerRecipient && calcResult && distributeBtn && clawbackBtn && distributionResult && communityFeed && resultList && feedMessages && sentimentChart) {
+            numRecipients.value = '';
+            tokensPerRecipient.value = '';
+            calcResult.innerHTML = '';
+            distributeBtn.classList.add('hidden');
+            clawbackBtn.classList.add('hidden');
+            distributionResult.classList.add('hidden');
+            communityFeed.classList.add('hidden');
+            resultList.innerHTML = '';
+            feedMessages.innerHTML = '';
+            sentimentChart.classList.add('hidden');
+            if (chartInstance) {
+              chartInstance.destroy();
+              chartInstance = null;
+            }
+            if (sentimentChartInstance) {
+              sentimentChartInstance.destroy();
+              sentimentChartInstance = null;
+            }
+            document.querySelectorAll('.popup').forEach(p => p.remove());
+          }
+        } catch (e) {
+          console.error('Error in resetProjectSimulation:', e);
+        }
+      }
+
+      // Project Simulation
+      function calculateTotalTokens() {
+        try {
+          const numRecipientsInput = document.getElementById('numRecipients');
+          const tokensPerRecipientInput = document.getElementById('tokensPerRecipient');
+          const calcResult = document.getElementById('calcResult');
+          if (!numRecipientsInput || !tokensPerRecipientInput || !calcResult) {
+            console.error('Required elements not found in calculateTotalTokens');
+            return;
+          }
+          const numRecipients = parseInt(numRecipientsInput.value);
+          const tokensPerRecipient = parseInt(tokensPerRecipientInput.value);
+          if (!numRecipients || !tokensPerRecipient || numRecipients <= 0 || tokensPerRecipient <= 0) {
+            calcResult.innerHTML = '❌ Invalid input. Enter positive numbers!';
+            calcResult.classList.add('error-border', 'flicker', 'corrupted');
+            playAudio(document.getElementById('glitchSound'));
+            simulateFreeze();
+            return;
+          }
+
+          totalTokens = numRecipients * tokensPerRecipient;
+          let errorMessage = '';
+          if (Math.random() < 0.4) {
+            const error = Math.floor(Math.random() * totalTokens * 0.3);
+            totalTokens += Math.random() < 0.5 ? error : -error;
+            errorMessage = '⚠️ Spreadsheet glitch: Total corrupted!';
+            playAudio(document.getElementById('glitchSound'));
+          }
+          if (Math.random() < 0.2) {
+            const lost = Math.floor(numRecipients * 0.3);
+            errorMessage += ` ⚠️ Lost ${lost} recipients’ data!`;
+            playAudio(document.getElementById('glitchSound'));
+          }
+
+          calcResult.innerHTML = `Calculated Total Tokens: ${totalTokens} ${errorMessage}`;
+          if (errorMessage) calcResult.classList.add('error-border', 'flicker', 'corrupted');
+          else calcResult.classList.remove('error-border', 'flicker', 'corrupted');
+          const distributeBtn = document.getElementById('distributeBtn');
+          if (distributeBtn) distributeBtn.classList.remove('hidden');
+          simulateFreeze();
+        } catch (e) {
+          console.error('Error in calculateTotalTokens:', e);
+        }
+      }
+
+      function startDistribution() {
+        try {
+          const numRecipientsInput = document.getElementById('numRecipients');
+          const tokensPerRecipientInput = document.getElementById('tokensPerRecipient');
+          const distributionResult = document.getElementById('distributionResult');
+          const communityFeed = document.getElementById('communityFeed');
+          const resultList = document.getElementById('resultList');
+          if (!numRecipientsInput || !tokensPerRecipientInput || !distributionResult || !communityFeed || !resultList) {
+            console.error('Required elements not found in startDistribution');
+            return;
+          }
+          const numRecipients = parseInt(numRecipientsInput.value);
+          const tokensPerRecipient = parseInt(tokensPerRecipientInput.value);
+          totalTokens = numRecipients * tokensPerRecipient;
+
+          successfulTokens = 0;
+          wrongAddressTokens = 0;
+          failedTokens = 0;
+          unclaimedTokens = 0;
+          hackedTokens = 0;
+          botTokens = 0;
+
+          for (let i = 0; i < numRecipients; i++) {
+            if (Math.random() < 0.1) {
+              hackedTokens += tokensPerRecipient;
+            } else if (Math.random() < 0.15) {
+              botTokens += tokensPerRecipient;
+            } else if (Math.random() < 0.2) {
+              wrongAddressTokens += tokensPerRecipient;
+            } else if (Math.random() < 0.25) {
+              failedTokens += tokensPerRecipient;
+            } else if (Math.random() < 0.15) {
+              failedTokens += tokensPerRecipient;
+            } else {
+              successfulTokens += tokensPerRecipient;
+              if (Math.random() < 0.4) {
+                unclaimedTokens += tokensPerRecipient;
+                successfulTokens -= tokensPerRecipient;
+              }
+            }
+          }
+
+          distributionResult.classList.remove('hidden');
+          communityFeed.classList.remove('hidden');
+          populateCommunityFeed();
+
+          resultList.innerHTML = 'Distributing tokens... <span class="flicker corrupted">Processing</span>';
+          let progress = 0;
+          const popupInterval = setInterval(() => {
+            if (progress < 100) showPopup(communityMessages[Math.floor(Math.random() * communityMessages.length)]);
+          }, 1000);
+          const progressInterval = setInterval(() => {
+            progress += Math.random() < 0.6 ? 10 : -10;
+            if (progress < 0) progress = 0;
+            if (progress >= 100) {
+              clearInterval(progressInterval);
+              clearInterval(popupInterval);
+              displayDistributionResults();
+            }
+            resultList.innerHTML = `Distributing tokens... ${progress}% <span class="flicker corrupted">Processing</span>`;
+            simulateFreeze();
+          }, 500);
+        } catch (e) {
+          console.error('Error in startDistribution:', e);
+        }
+      }
+
+      function displayDistributionResults() {
+        try {
+          const resultList = document.getElementById('resultList');
+          const clawbackBtn = document.getElementById('clawbackBtn');
+          const resultChart = document.getElementById('resultChart');
+          if (!resultList || !clawbackBtn || !resultChart) {
+            console.error('Required elements not found in displayDistributionResults');
+            return;
+          }
+          resultList.innerHTML = `
+            <li>✅ ${successfulTokens} sent successfully</li>
+            <li>❌ ${wrongAddressTokens} sent to wrong addresses (typos)</li>
+            <li>🚫 ${failedTokens} failed (gas/server issues)</li>
+            <li>⏳ ${unclaimedTokens} remain unclaimed</li>
+            <li>🕵️ ${hackedTokens} stolen by hackers</li>
+            <li>🤖 ${botTokens} claimed by bots</li>
+          `;
+          clawbackBtn.classList.remove('hidden');
+
+          if (typeof Chart === 'undefined') {
+            console.error('Chart.js not loaded, skipping chart');
+            return;
+          }
+          if (chartInstance) chartInstance.destroy();
+          const ctx = resultChart.getContext('2d');
+          chartInstance = new Chart(ctx, {
+            type: 'pie',
+            data: {
+              labels: ['Successful', 'Wrong Address', 'Failed', 'Unclaimed', 'Hacked', 'Bots'],
+              datasets: [{
+                data: [successfulTokens, wrongAddressTokens, failedTokens, unclaimedTokens, hackedTokens, botTokens],
+                backgroundColor: ['#06b6d4', '#f05252', '#f4a261', '#9ca3af', '#f97316', '#10b981']
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { position: 'top', labels: { color: '#f3f4f6' } } }
+            }
+          });
+        } catch (e) {
+          console.error('Error in displayDistributionResults:', e);
+        }
+      }
+
+      function attemptClawback() {
+        try {
+          const resultList = document.getElementById('resultList');
+          if (!resultList) {
+            console.error('Result list element not found in attemptClawback');
+            return;
+          }
+          const clawbackChance = Math.random();
+          const clawbackTokens = wrongAddressTokens + hackedTokens;
+          let message = '';
+          if (clawbackChance < 0.9) {
+            message = `❌ Clawback failed! ${clawbackTokens} tokens lost forever.`;
+          } else {
+            const recovered = Math.floor(clawbackTokens * 0.3);
+            successfulTokens += recovered;
+            wrongAddressTokens = Math.floor(wrongAddressTokens * 0.7);
+            hackedTokens = Math.floor(hackedTokens * 0.7);
+            message = `✅ Partial clawback: Recovered ${recovered} tokens.`;
+            displayDistributionResults();
+          }
+          resultList.innerHTML += `<li class="corrupted">${message}</li>`;
+          showPopup('Clawback attempt: ' + message);
+          simulateFreeze();
+        } catch (e) {
+          console.error('Error in attemptClawback:', e);
+        }
+      }
+
+      // Receiver Simulation
+      function populateAddresses() {
+        try {
+          const addressSelect = document.getElementById('addressSelect');
+          const claimResult = document.getElementById('claimResult');
+          const notificationsDiv = document.getElementById('notifications');
+          const kycSection = document.getElementById('kycSection');
+          if (!addressSelect || !claimResult || !notificationsDiv || !kycSection) {
+            console.error('Required elements not found in populateAddresses');
+            return;
+          }
+          addressSelect.innerHTML = '';
+          const addresses = [];
+          for (let i = 0; i < 5; i++) {
+            let address = '0x' + Math.random().toString(16).substr(2, 10) + '...';
+            if (Math.random() < 0.3) {
+              address = address.replace(/[0-9a-f]/, 'X');
+            }
+            const isEligible = Math.random() < 0.4;
+            addresses.push({ address, isEligible });
+            const option = document.createElement('option');
+            option.value = JSON.stringify({ address, isEligible });
+            option.textContent = `${address} (${isEligible ? 'eligible' : 'not eligible'})`;
+            addressSelect.appendChild(option);
+          }
+          claimResult.innerHTML = '';
+          notificationsDiv.innerHTML = '';
+          kycSection.classList.toggle('hidden', Math.random() > 0.4);
+          simulateFreeze();
+        } catch (e) {
+          console.error('Error in populateAddresses:', e);
+        }
+      }
+
+      function claimTokens() {
+        try {
+          const addressSelect = document.getElementById('addressSelect');
+          const kycNameInput = document.getElementById('kycName');
+          const claimResult = document.getElementById('claimResult');
+          const notificationsDiv = document.getElementById('notifications');
+          if (!addressSelect || !claimResult || !notificationsDiv) {
+            console.error('Required elements not found in claimTokens');
+            return;
+          }
+          const selected = JSON.parse(addressSelect.value);
+          const kycName = kycNameInput?.value || '';
+          claimResult.innerHTML = '⌛ Processing claim... <span class="flicker corrupted">Loading</span>';
+
+          const notifications = communityMessages.sort(() => Math.random() - 0.5).slice(0, 3);
+          notificationsDiv.innerHTML = notifications.join('<br>');
+
+          const popupInterval = setInterval(() => {
+            showPopup(communityMessages[Math.floor(Math.random() * communityMessages.length)]);
+          }, 800);
+
+          setTimeout(() => {
+            clearInterval(popupInterval);
+            if (Math.random() < 0.2) {
+              claimResult.innerHTML = '❌ Server crashed! Try later.';
+              claimResult.classList.add('error-border', 'flicker', 'corrupted');
+              showPopup('Server down!');
+              playAudio(document.getElementById('glitchSound'));
+              simulateFreeze();
+              return;
+            }
+            if (Math.random() < 0.3 && kycName) {
+              claimResult.innerHTML = '❌ KYC rejected: typo detected.';
+              claimResult.classList.add('error-border', 'flicker', 'corrupted');
+              showPopup('KYC failed!');
+              playAudio(document.getElementById('glitchSound'));
+              return;
+            }
+            if (!selected.isEligible || Math.random() < 0.25) {
+              claimResult.innerHTML = Math.random() < 0.5
+                ? '❌ Not eligible. Data corrupted.'
+                : '❌ Error: Address not in system.';
+              claimResult.classList.add('error-border', 'flicker', 'corrupted');
+              showPopup('Eligibility error!');
+              playAudio(document.getElementById('glitchSound'));
+              return;
+            }
+            const outcome = Math.random();
+            if (outcome < 0.25) {
+              claimResult.innerHTML = '❌ Queue crashed! Start over.';
+              showPopup('Queue crashed!');
+              playAudio(document.getElementById('glitchSound'));
+              return;
+            } else if (outcome < 0.5) {
+              claimResult.innerHTML = '❌ Tokens already claimed!';
+              showPopup('Double claim detected!');
+              playAudio(document.getElementById('glitchSound'));
+              return;
+            } else if (outcome < 0.75) {
+              claimResult.innerHTML = '❌ Transaction failed: Gas error.';
+              showPopup('Gas miscalculated!');
+              playAudio(document.getElementById('glitchSound'));
+              return;
+            } else if (outcome < 0.9) {
+              claimResult.innerHTML = '⏳ Delayed: Tokens stuck.';
+              showPopup('Claim delayed!');
+              playAudio(document.getElementById('alertSound'));
+              return;
+            } else {
+              claimResult.innerHTML = '✅ Success: Tokens claimed... barely!';
+              claimResult.classList.remove('error-border', 'flicker', 'corrupted');
+              showPopup('Claim succeeded!');
+              playAudio(document.getElementById('alertSound'));
+            }
+            if (Math.random() < 0.4) {
+              claimResult.innerHTML += '<br>⚠️ Error sistema: Token no enviar. Retry pls.';
+              playAudio(document.getElementById('glitchSound'));
+            }
+            simulateFreeze();
+          }, 2000);
+        } catch (e) {
+          console.error('Error in claimTokens:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Critical script error:', e);
+    }
+  </script>
+</body>
+</html>
